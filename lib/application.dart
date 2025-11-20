@@ -80,27 +80,9 @@ class ApplicationState extends ConsumerState<Application> {
     // 立即检查token存在性，不延迟
     Future.microtask(() async {
       try {
-        print('[Application] 开始使用新域名服务进行快速认证检查...');
+        print('[Application] 开始快速认证检查...');
         
-        // 优先获取Flclash入口域名
-        String? entryDomain;
-        
-        try {
-          // 使用竞速方式获取最快的入口域名
-          entryDomain = await XBoardConfig.getFastestPanelUrl();
-          print('[Application] 竞速获取到最快Flclash入口域名: $entryDomain');
-        } catch (e) {
-          print('[Application] 竞速获取域名失败，尝试传统方式: $e');
-          // 降级到传统方式
-          try {
-            entryDomain = XBoardConfig.panelUrl;
-            print('[Application] 传统方式获取到Flclash入口域名: $entryDomain');
-          } catch (e2) {
-            print('[Application] 获取Flclash入口域名完全失败: $e2');
-            entryDomain = null;
-          }
-        }
-        
+        // SDK 已在 main.dart 中初始化并完成域名竞速，直接使用即可
         final userNotifier = ref.read(xboardUserProvider.notifier);
         await userNotifier.quickAuth();
         

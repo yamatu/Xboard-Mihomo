@@ -56,6 +56,9 @@ class _XBoardConfigProvider implements ConfigProviderInterface {
   _XBoardConfigProvider(this.accessor);
   
   @override
+  String getPanelType() => accessor.getPanelType();
+  
+  @override
   String? getPanelUrl() => accessor.getFirstPanelUrl();
   
   @override
@@ -82,13 +85,25 @@ class _XBoardConfigProvider implements ConfigProviderInterface {
   Future<String?> getFastestPanelUrl() async {
     final panelUrls = getAllPanelUrls();
     if (panelUrls.isEmpty) return null;
-    if (panelUrls.length == 1) return panelUrls.first;
-
-    final fastestUrl = await DomainRacingService.raceSelectFastestDomain(
+    
+    // 获取所有代理配置
+    final proxyUrls = getAllProxyUrls();
+    
+    // 始终使用竞速，即使只有一个域名（竞速会直接返回该域名）
+    // 每个域名会测试：直连 + 所有代理
+    final racingResult = await DomainRacingService.raceSelectFastestDomain(
       panelUrls,
       forceHttpsResult: true,
+      proxyUrls: proxyUrls,
     );
-    return fastestUrl ?? panelUrls.first;
+    
+    // 竞速失败直接返回 null，不回退
+    if (racingResult == null) return null;
+    
+    // 保存竞速结果中的代理配置（供 SDK 使用）
+    XBoardConfig._lastRacingResult = racingResult;
+    
+    return racingResult.domain;
   }
   
   @override
@@ -120,6 +135,9 @@ class _XBoardConfigProvider implements ConfigProviderInterface {
 class XBoardConfig {
   static XBoardConfigAccessor? _instance;
   static _XBoardConfigProvider? _provider;
+  
+  // 缓存最后一次竞速结果
+  static DomainRacingResult? _lastRacingResult;
   
   // 私有构造函数，防止外部实例化
   XBoardConfig._();
@@ -158,6 +176,9 @@ class XBoardConfig {
   /// 检查是否已初始化
   static bool get isInitialized => _instance != null;
   
+  /// 获取最后一次竞速结果
+  static DomainRacingResult? get lastRacingResult => _lastRacingResult;
+  
   /// 重置模块
   static void reset() {
     _instance?.dispose();
@@ -186,18 +207,27 @@ class XBoardConfig {
   /// 并发竞速获取最快的面板URL
   /// 
   /// 对当前所有可用的面板URL进行并发测试，返回响应最快的URL
-  /// 如果所有URL都失败，则返回第一个URL作为回退
+  /// 如果所有URL都失败，则返回null
   /// 注意：返回的URL会强制转换为HTTPS格式，以适配SDK的私有证书配置
   static Future<String?> getFastestPanelUrl() async {
     final panelUrls = allPanelUrls;
     if (panelUrls.isEmpty) return null;
-    if (panelUrls.length == 1) return panelUrls.first;
+    
+    // 获取所有代理
+    final proxyUrls = allProxyUrls;
 
-    final fastestUrl = await DomainRacingService.raceSelectFastestDomain(
+    final racingResult = await DomainRacingService.raceSelectFastestDomain(
       panelUrls,
       forceHttpsResult: true, // 强制返回HTTPS格式，适配SDK私有证书
+      proxyUrls: proxyUrls,
     );
-    return fastestUrl ?? panelUrls.first;
+    
+    if (racingResult == null) return null;
+    
+    // 保存竞速结果
+    _lastRacingResult = racingResult;
+    
+    return racingResult.domain;
   }
   
   /// 获取第一个代理URL
@@ -263,15 +293,18 @@ class XBoardConfig {
     }
     
     if (subscriptionUrls.isEmpty) return null;
-    if (subscriptionUrls.length == 1) return subscriptionUrls.first;
+    
+    // 获取所有代理
+    final proxyUrls = allProxyUrls;
     
     // 使用竞速服务选择最快的订阅URL
-    final fastestUrl = await DomainRacingService.raceSelectFastestDomain(
+    final racingResult = await DomainRacingService.raceSelectFastestDomain(
       subscriptionUrls,
       forceHttpsResult: false, // 订阅URL保持原始格式
+      proxyUrls: proxyUrls,
     );
     
-    return fastestUrl ?? subscriptionUrls.first;
+    return racingResult?.domain;
   }
   
   /// 获取所有面板URL列表

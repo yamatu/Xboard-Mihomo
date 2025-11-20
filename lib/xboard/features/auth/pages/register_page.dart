@@ -2,6 +2,7 @@ import 'package:fl_clash/xboard/features/auth/auth.dart';
 import 'package:fl_clash/xboard/sdk/xboard_sdk.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:flutter/material.dart';
+import 'package:fl_clash/xboard/utils/xboard_notification.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_clash/xboard/features/shared/shared.dart';
 import 'package:fl_clash/xboard/services/services.dart';
@@ -33,12 +34,21 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     super.dispose();
   }
   Future<void> _register() async {
-    // 根据配置检查邀请码是否必填
+    // 获取配置
     final configAsync = ref.read(configProvider);
-    final isInviteForce = configAsync.value?.isInviteForce ?? false;
+    final config = configAsync.value;
+    final isInviteForce = config?.isInviteForce ?? false;
+    final isEmailVerify = config?.isEmailVerify ?? false;
     
+    // 检查邀请码是否必填
     if (isInviteForce && _inviteCodeController.text.trim().isEmpty) {
       _showInviteCodeDialog();
+      return;
+    }
+    
+    // 检查邮箱验证码是否必填
+    if (isEmailVerify && _emailCodeController.text.trim().isEmpty) {
+      XBoardNotification.showError('请输入邮箱验证码');
       return;
     }
 
@@ -50,8 +60,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         await XBoardSDK.register(
           email: _emailController.text,
           password: _passwordController.text,
-          inviteCode: _inviteCodeController.text,
-          emailCode: _emailCodeController.text,
+          inviteCode: _inviteCodeController.text.trim().isNotEmpty 
+              ? _inviteCodeController.text 
+              : null,
+          emailCode: isEmailVerify && _emailCodeController.text.trim().isNotEmpty
+              ? _emailCodeController.text
+              : null,
         );
         
         // 注册成功
@@ -63,12 +77,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             true, // 启用记住密码
           );
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(appLocalizations.xboardRegisterSuccess),
-                duration: Duration(seconds: 1),
-              ),
-            );
+            XBoardNotification.showSuccess(appLocalizations.xboardRegisterSuccess);
           }
           Future.delayed(const Duration(seconds: 1), () {
             if (mounted) {
@@ -109,12 +118,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           
           print('[RegisterPage] Display error message: $errorMessage');
           
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorMessage),
-              duration: const Duration(seconds: 3),
-            ),
-          );
+          XBoardNotification.showError(errorMessage);
         }
       } finally {
         if (mounted) {
@@ -128,16 +132,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
   Future<void> _sendEmailCode() async {
     if (_emailController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(appLocalizations.pleaseEnterEmailAddress)),
-      );
+      XBoardNotification.showError(appLocalizations.pleaseEnterEmailAddress);
       return;
     }
 
     if (!_emailController.text.contains('@')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(appLocalizations.pleaseEnterValidEmailAddress)),
-      );
+      XBoardNotification.showError(appLocalizations.pleaseEnterValidEmailAddress);
       return;
     }
 
@@ -149,18 +149,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       await XBoardSDK.sendVerificationCode(_emailController.text);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(appLocalizations.verificationCodeSentCheckEmail),
-            duration: Duration(seconds: 2),
-          ),
-        );
+        XBoardNotification.showSuccess(appLocalizations.verificationCodeSentCheckEmail);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(appLocalizations.sendVerificationCodeFailed(e.toString()))),
-        );
+        XBoardNotification.showError(appLocalizations.sendVerificationCodeFailed(e.toString()));
       }
     } finally {
       if (mounted) {

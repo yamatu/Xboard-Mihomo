@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:fl_clash/xboard/utils/xboard_notification.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -23,7 +24,7 @@ final _logger = FileLogger('plan_purchase_page.dart');
 
 /// 套餐购买页面
 class PlanPurchasePage extends ConsumerStatefulWidget {
-  final PlanData plan;
+  final Plan plan;
   final bool embedded; // 是否为嵌入模式（桌面端页面内切换时使用）
   final VoidCallback? onBack; // 返回回调
 
@@ -283,11 +284,7 @@ class _PlanPurchasePageState extends ConsumerState<PlanPurchasePage> {
 
   Future<void> _proceedToPurchase() async {
     if (_selectedPeriod == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context).xboardPleaseSelectPaymentPeriod),
-        ),
-      );
+      XBoardNotification.showError(AppLocalizations.of(context).xboardPleaseSelectPaymentPeriod);
       return;
     }
 
@@ -357,12 +354,7 @@ class _PlanPurchasePageState extends ConsumerState<PlanPurchasePage> {
       _logger.error('购买流程出错: $e');
         if (mounted) {
         PaymentWaitingManager.hide();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('操作失败: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        XBoardNotification.showError('操作失败: ${e.toString()}');
       }
     }
   }
@@ -444,16 +436,22 @@ class _PlanPurchasePageState extends ConsumerState<PlanPurchasePage> {
         final paymentType = paymentResult['type'] as int? ?? 0;
         final paymentData = paymentResult['data'];
         
-    // type: -1 余额支付成功
-    // type: 0 跳转支付
-    // type: 1 二维码支付
+    // type: -1 余额支付成功（data 是 bool）
+    // type: 0 跳转支付（data 是 String）
+    // type: 1 二维码支付（data 是 String）
         if (paymentType == -1) {
-      await _handleBalancePaymentSuccess();
-    } else if (paymentData != null && paymentData.toString().isNotEmpty) {
+      // 免费订单/余额支付，data 是 bool
+      if (paymentData == true) {
+        await _handleBalancePaymentSuccess();
+      } else {
+        throw Exception('支付失败: 余额支付未成功');
+      }
+    } else if (paymentData != null && paymentData is String && paymentData.isNotEmpty) {
+      // 付费订单，data 是支付URL（String）
       PaymentWaitingManager.updateStep(PaymentStep.waitingPayment);
-      await _launchPaymentUrl(paymentData.toString(), tradeNo);
+      await _launchPaymentUrl(paymentData, tradeNo);
     } else {
-      throw Exception('支付失败: 未获取到有效的支付数据');
+      throw Exception('支付失败: 未获取到有效的支付数据 (type=$paymentType, data=$paymentData)');
     }
   }
 
@@ -469,13 +467,7 @@ class _PlanPurchasePageState extends ConsumerState<PlanPurchasePage> {
           }
           
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(AppLocalizations.of(context).xboardPaymentSuccess),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            XBoardNotification.showSuccess(AppLocalizations.of(context).xboardPaymentSuccess);
             
             Future.delayed(const Duration(milliseconds: 500), () {
               if (mounted) {
@@ -513,12 +505,7 @@ class _PlanPurchasePageState extends ConsumerState<PlanPurchasePage> {
     } catch (e) {
       if (mounted) {
         PaymentWaitingManager.hide();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('打开支付页面失败: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        XBoardNotification.showError('打开支付页面失败: ${e.toString()}');
       }
     }
   }

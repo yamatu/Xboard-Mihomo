@@ -5,6 +5,7 @@ import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/xboard/features/invite/providers/invite_provider.dart';
 import 'package:fl_clash/xboard/config/xboard_config.dart';
 import 'package:fl_clash/xboard/features/invite/widgets/qr_code_widget.dart';
+import 'package:fl_clash/xboard/utils/xboard_notification.dart';
 
 class InviteQrCard extends ConsumerWidget {
   const InviteQrCard({super.key});
@@ -121,15 +122,11 @@ class InviteQrCard extends ConsumerWidget {
 
   void _copyToClipboard(BuildContext context, String text) {
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(appLocalizations.copiedToClipboard)),
-    );
+    XBoardNotification.showSuccess(appLocalizations.copiedToClipboard);
   }
 
   void _saveQrCode(BuildContext context, String inviteUrl) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(appLocalizations.saveQrCodeFeature)),
-    );
+    XBoardNotification.showInfo(appLocalizations.saveQrCodeFeature);
   }
 
   String _getSdkBaseUrl() {

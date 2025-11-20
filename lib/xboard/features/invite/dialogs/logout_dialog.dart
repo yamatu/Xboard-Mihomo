@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fl_clash/xboard/utils/xboard_notification.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/xboard/features/auth/providers/xboard_user_provider.dart';
@@ -34,21 +35,11 @@ class LogoutDialog extends ConsumerWidget {
     try {
       await ref.read(xboardUserProvider.notifier).logout();
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(appLocalizations.loggedOutSuccess),
-            duration: Duration(seconds: 2),
-          ),
-        );
+        XBoardNotification.showSuccess(appLocalizations.loggedOutSuccess);
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(appLocalizations.logoutFailed(e.toString())),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
+        XBoardNotification.showError(appLocalizations.logoutFailed(e.toString()));
       }
     }
   }

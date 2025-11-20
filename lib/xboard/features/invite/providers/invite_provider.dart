@@ -1,6 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/xboard/sdk/xboard_sdk.dart';
+import 'package:fl_clash/xboard/core/core.dart';
+
+// 初始化文件级日志器
+final _logger = FileLogger('invite_provider.dart');
 
 class InviteState {
   final InviteData? inviteData;
@@ -88,7 +91,7 @@ class InviteNotifier extends Notifier<InviteState> {
     state = state.copyWith(isLoading: true, errorMessage: null);
 
     try {
-      commonPrint.log('加载邀请信息...');
+      _logger.info('加载邀请信息...');
       final inviteData = await XBoardSDK.getInviteInfo();
 
       state = state.copyWith(
@@ -96,9 +99,9 @@ class InviteNotifier extends Notifier<InviteState> {
         isLoading: false,
       );
 
-      commonPrint.log('邀请信息加载成功: ${inviteData.toString()}');
+      _logger.info('邀请信息加载成功: ${inviteData.toString()}');
     } catch (e) {
-      commonPrint.log('加载邀请信息失败: $e');
+      _logger.info('加载邀请信息失败: $e');
       state = state.copyWith(
         isLoading: false,
         errorMessage: e.toString(),
@@ -112,7 +115,7 @@ class InviteNotifier extends Notifier<InviteState> {
     state = state.copyWith(isLoadingHistory: true);
 
     try {
-      commonPrint.log('加载佣金历史... 页码: $page');
+      _logger.info('加载佣金历史... 页码: $page');
       final newHistory = await XBoardSDK.getCommissionHistory(
         current: page,
         pageSize: state.historyPageSize,
@@ -134,9 +137,9 @@ class InviteNotifier extends Notifier<InviteState> {
         isLoadingHistory: false,
       );
 
-      commonPrint.log('佣金历史加载成功: 第$page页，${newHistory.length} 条记录');
+      _logger.info('佣金历史加载成功: 第$page页，${newHistory.length} 条记录');
     } catch (e) {
-      commonPrint.log('加载佣金历史失败: $e');
+      _logger.info('加载佣金历史失败: $e');
       state = state.copyWith(isLoadingHistory: false);
     }
   }
@@ -152,13 +155,13 @@ class InviteNotifier extends Notifier<InviteState> {
 
   Future<void> loadUserInfo() async {
     try {
-      commonPrint.log('加载用户信息...');
+      _logger.info('加载用户信息...');
       final userInfo = await XBoardSDK.getUserInfo();
 
       state = state.copyWith(userInfo: userInfo);
-      commonPrint.log('用户信息加载成功: 钱包余额 ¥${(userInfo?.balance ?? 0) / 100.0}');
+      _logger.info('用户信息加载成功: 钱包余额 ¥${(userInfo?.balance ?? 0) / 100.0}');
     } catch (e) {
-      commonPrint.log('加载用户信息失败: $e');
+      _logger.info('加载用户信息失败: $e');
     }
   }
 
@@ -168,16 +171,16 @@ class InviteNotifier extends Notifier<InviteState> {
     state = state.copyWith(isGenerating: true, errorMessage: null);
 
     try {
-      commonPrint.log('生成邀请码...');
+      _logger.info('生成邀请码...');
       final newCode = await XBoardSDK.generateInviteCode();
 
       await loadInviteData();
 
       state = state.copyWith(isGenerating: false);
-      commonPrint.log('邀请码生成成功: ${newCode?.code}');
+      _logger.info('邀请码生成成功: ${newCode?.code}');
       return newCode;
     } catch (e) {
-      commonPrint.log('生成邀请码失败: $e');
+      _logger.info('生成邀请码失败: $e');
       state = state.copyWith(
         isGenerating: false,
         errorMessage: e.toString(),
@@ -186,26 +189,29 @@ class InviteNotifier extends Notifier<InviteState> {
     }
   }
 
-  Future<WithdrawResultData?> withdrawCommission(String amount, String method) async {
+  Future<WithdrawResultData?> withdrawCommission({
+    required String withdrawMethod,
+    required String withdrawAccount,
+  }) async {
     if (state.isLoading) return null;
 
     state = state.copyWith(isLoading: true, errorMessage: null);
 
     try {
-      commonPrint.log('提现佣金: ¥$amount, 方式: $method');
+      _logger.info('提现佣金: 方式=$withdrawMethod, 账号=$withdrawAccount');
       final result = await XBoardSDK.withdrawCommission(
-        amount: double.tryParse(amount) ?? 0.0,
-        withdrawAccount: method,  // method是提现账号
+        withdrawMethod: withdrawMethod,
+        withdrawAccount: withdrawAccount,
       );
 
       await loadInviteData();
       await refreshCommissionHistory();
 
       state = state.copyWith(isLoading: false);
-      commonPrint.log('提现申请提交成功');
+      _logger.info('提现申请提交成功');
       return result;
     } catch (e) {
-      commonPrint.log('提现申请失败: $e');
+      _logger.info('提现申请失败: $e');
       state = state.copyWith(
         isLoading: false,
         errorMessage: e.toString(),
@@ -214,14 +220,14 @@ class InviteNotifier extends Notifier<InviteState> {
     }
   }
 
-  Future<TransferResultData?> transferCommission(int amount) async {
+  Future<TransferResultData?> transferCommission(double amount) async {
     if (state.isLoading) return null;
     
     state = state.copyWith(isLoading: true, errorMessage: null);
     
     try {
-      commonPrint.log('划转佣金到钱包: ¥$amount');
-      final result = await XBoardSDK.transferCommissionToBalance(amount.toDouble());
+      _logger.info('划转佣金到钱包: ¥$amount');
+      final result = await XBoardSDK.transferCommissionToBalance(amount);
       
       await Future.wait([
         loadInviteData(),
@@ -229,10 +235,10 @@ class InviteNotifier extends Notifier<InviteState> {
       ]);
       
       state = state.copyWith(isLoading: false);
-      commonPrint.log('划转成功');
+      _logger.info('划转成功');
       return result;
     } catch (e) {
-      commonPrint.log('划转失败: $e');
+      _logger.info('划转失败: $e');
       state = state.copyWith(
         isLoading: false,
         errorMessage: e.toString(),

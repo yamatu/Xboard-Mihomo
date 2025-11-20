@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fl_clash/xboard/utils/xboard_notification.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_clash/xboard/features/shared/shared.dart';
 import 'package:fl_clash/xboard/sdk/xboard_sdk.dart';
@@ -54,18 +55,11 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
         setState(() {
           _currentStep = ResetPasswordStep.resetPassword;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context).verificationCodeSent),
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        XBoardNotification.showSuccess(AppLocalizations.of(context).verificationCodeSent);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${AppLocalizations.of(context).sendCodeFailed}: $e')),
-        );
+        XBoardNotification.showError('${AppLocalizations.of(context).sendCodeFailed}: $e');
       }
     } finally {
       if (mounted) {
@@ -82,9 +76,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
     }
 
     if (_passwordController.text != _confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context).passwordMismatch)),
-      );
+      XBoardNotification.showError(AppLocalizations.of(context).passwordMismatch);
       return;
     }
 
@@ -102,19 +94,12 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
       );
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context).passwordResetSuccessful),
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        XBoardNotification.showSuccess(AppLocalizations.of(context).passwordResetSuccessful);
         context.pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${AppLocalizations.of(context).passwordResetFailed}: $e')),
-        );
+        XBoardNotification.showError('${AppLocalizations.of(context).passwordResetFailed}: $e');
       }
     } finally {
       if (mounted) {

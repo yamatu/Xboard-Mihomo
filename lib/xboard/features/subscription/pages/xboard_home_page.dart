@@ -12,6 +12,7 @@ import 'package:fl_clash/xboard/features/shared/shared.dart';
 import 'package:fl_clash/xboard/features/latency/services/auto_latency_service.dart';
 import 'package:fl_clash/xboard/features/subscription/services/subscription_status_checker.dart';
 import 'package:fl_clash/xboard/features/auth/pages/login_page.dart';
+import 'package:fl_clash/xboard/features/profile/providers/profile_import_provider.dart';
 import '../widgets/subscription_usage_card.dart';
 import '../widgets/xboard_connect_button.dart';
 class XBoardHomePage extends ConsumerStatefulWidget {
@@ -23,6 +24,7 @@ class _XBoardHomePageState extends ConsumerState<XBoardHomePage>
     with AutomaticKeepAliveClientMixin {
   bool _hasInitialized = false;
   bool _hasStartedLatencyTesting = false;
+  bool _hasCheckedSubscriptionStatus = false;
   
   @override
   bool get wantKeepAlive => true;  // 保持页面状态，防止重建
@@ -35,11 +37,8 @@ class _XBoardHomePageState extends ConsumerState<XBoardHomePage>
       _hasInitialized = true;
       final userState = ref.read(xboardUserProvider);
       if (userState.isAuthenticated) {
-        Future.delayed(const Duration(seconds: 1), () {
-          if (mounted) {
-            subscriptionStatusChecker.checkSubscriptionStatusOnStartup(context, ref);
-          }
-        });
+        // 等待订阅导入完成后再检查订阅状态
+        _waitForSubscriptionImportThenCheck();
       }
       autoLatencyService.initialize(ref);
       _waitForGroupsAndStartTesting();
@@ -51,6 +50,20 @@ class _XBoardHomePageState extends ConsumerState<XBoardHomePage>
         });
       }
     });
+    
+    // 监听订阅导入完成事件
+    ref.listenManual(profileImportProvider, (previous, next) {
+      // 从导入中变为完成（成功或失败）
+      if (previous?.isImporting == true && !next.isImporting && !_hasCheckedSubscriptionStatus) {
+        _hasCheckedSubscriptionStatus = true;
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            subscriptionStatusChecker.checkSubscriptionStatusOnStartup(context, ref);
+          }
+        });
+      }
+    });
+    
     ref.listenManual(currentProfileProvider, (previous, next) {
       if (previous?.label != next?.label && previous != null) {
         Future.delayed(const Duration(milliseconds: 1500), () {
@@ -223,6 +236,22 @@ class _XBoardHomePageState extends ConsumerState<XBoardHomePage>
   Widget _buildProxyModeSection() {
     return const XBoardOutboundMode();
   }
+  /// 等待订阅导入完成后再检查订阅状态（备用方案）
+  /// 如果3秒后还没有触发导入完成监听器，则主动检查
+  void _waitForSubscriptionImportThenCheck() async {
+    await Future.delayed(const Duration(seconds: 3));
+    
+    // 如果已经通过监听器检查过了，就不再检查
+    if (_hasCheckedSubscriptionStatus) {
+      return;
+    }
+    
+    _hasCheckedSubscriptionStatus = true;
+    if (mounted) {
+      subscriptionStatusChecker.checkSubscriptionStatusOnStartup(context, ref);
+    }
+  }
+  
   void _showTokenExpiredDialog() {
     if (!mounted) return;
     showDialog(

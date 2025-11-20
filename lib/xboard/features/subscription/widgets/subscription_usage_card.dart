@@ -266,7 +266,7 @@ class SubscriptionUsageCard extends ConsumerWidget {
         plans = ref.read(xboardSubscriptionProvider);
       }
       
-      final currentPlan = plans.cast<PlanData?>().firstWhere(
+      final currentPlan = plans.cast<Plan?>().firstWhere(
         (plan) => plan?.id == currentPlanId,
         orElse: () => null,
       );

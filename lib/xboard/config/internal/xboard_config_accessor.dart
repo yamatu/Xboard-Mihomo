@@ -215,6 +215,28 @@ class XBoardConfigAccessor {
 
   // ========== 便捷访问方法 ==========
 
+  /// 获取面板类型
+  /// 
+  /// 必须从配置中读取，不提供默认值
+  String getPanelType() {
+    if (_currentConfig == null) {
+      throw XBoardConfigException(
+        message: '配置未初始化，无法获取面板类型',
+        code: 'CONFIG_NOT_INITIALIZED',
+      );
+    }
+    
+    final panelType = _currentConfig!.panelType;
+    if (panelType.isEmpty) {
+      throw XBoardConfigException(
+        message: '配置文件中未指定面板类型 (panelType)',
+        code: 'PANEL_TYPE_NOT_CONFIGURED',
+      );
+    }
+    
+    return panelType;
+  }
+
   /// 获取第一个面板URL
   String? getFirstPanelUrl() {
     return _panelService?.getFirstPanelUrl();

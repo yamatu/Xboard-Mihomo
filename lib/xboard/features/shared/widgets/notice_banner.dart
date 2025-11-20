@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:fl_clash/xboard/utils/xboard_notification.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -692,23 +693,13 @@ class _NoticeDetailDialogState extends State<NoticeDetailDialog>
       } else {
         // 如果无法打开，显示提示
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('无法打开链接: $href'),
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          XBoardNotification.showError('无法打开链接: $href');
         }
       }
     } catch (e) {
       // 处理无效URL或其他错误
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('链接格式错误: $href'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        XBoardNotification.showError('链接格式错误: $href');
       }
     }
   }

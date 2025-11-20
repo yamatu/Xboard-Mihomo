@@ -10,6 +10,7 @@ import 'register_page.dart';
 import 'forgot_password_page.dart';
 import 'package:fl_clash/xboard/features/shared/shared.dart';
 import 'package:fl_clash/xboard/config/utils/config_file_loader.dart';
+import 'package:fl_clash/xboard/utils/xboard_notification.dart';
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
   @override
@@ -103,12 +104,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             );
           }
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(appLocalizations.xboardLoginSuccess),
-                duration: Duration(seconds: 1),
-              ),
-            );
+            XBoardNotification.showSuccess(appLocalizations.xboardLoginSuccess);
             Future.delayed(const Duration(milliseconds: 500), () {
               if (mounted) {
                 context.go('/');
@@ -118,9 +114,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         } else {
           final userState = ref.read(xboardUserProvider);
           if (userState.errorMessage != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('${appLocalizations.xboardLoginFailed}: ${userState.errorMessage}')),
-            );
+            // 使用 FlClash 的原生 Toast 通知（自动消失）
+            XBoardNotification.showError(userState.errorMessage!);
           }
         }
       }

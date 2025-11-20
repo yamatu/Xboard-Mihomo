@@ -58,8 +58,9 @@ class SubscriptionStatusService {
         needsDialog: false,
       );
     }
-    final subscriptionInfo = userState.subscriptionInfo;
-    if (subscriptionInfo == null) {
+    
+    // 只使用 profileSubscriptionInfo 作为数据源
+    if (profileSubscriptionInfo == null) {
       return SubscriptionStatusResult(
         type: SubscriptionStatusType.noSubscription,
         messageBuilder: (context) => AppLocalizations.of(context).subscriptionNoSubscription,
@@ -67,7 +68,9 @@ class SubscriptionStatusService {
         needsDialog: true,
       );
     }
-    final expiredAt = _getEffectiveExpiredAt(subscriptionInfo, profileSubscriptionInfo);
+    
+    // 检查过期时间
+    final expiredAt = _getExpiredAt(profileSubscriptionInfo);
     if (expiredAt != null) {
       final now = DateTime.now();
       final isExpired = now.isAfter(expiredAt);
@@ -103,10 +106,13 @@ class SubscriptionStatusService {
         );
       }
     }
-    final trafficStatus = _checkTrafficStatus(subscriptionInfo, profileSubscriptionInfo);
+    
+    // 检查流量状态
+    final trafficStatus = _checkTrafficStatus(profileSubscriptionInfo);
     if (trafficStatus != null) {
       return trafficStatus;
     }
+    
     final remainingDays = expiredAt?.difference(DateTime.now()).inDays;
     return SubscriptionStatusResult(
       type: SubscriptionStatusType.valid,
@@ -119,30 +125,25 @@ class SubscriptionStatusService {
       needsDialog: false,
     );
   }
-  DateTime? _getEffectiveExpiredAt(
-    SubscriptionData subscriptionInfo,
+  DateTime? _getExpiredAt(
     fl_models.SubscriptionInfo? profileSubscriptionInfo,
   ) {
     if (profileSubscriptionInfo?.expire != null && profileSubscriptionInfo!.expire != 0) {
       return DateTime.fromMillisecondsSinceEpoch(profileSubscriptionInfo.expire * 1000);
     }
-    return subscriptionInfo.expiredAt;
+    return null;
   }
   SubscriptionStatusResult? _checkTrafficStatus(
-    SubscriptionData subscriptionInfo,
     fl_models.SubscriptionInfo? profileSubscriptionInfo,
   ) {
-    double usedTraffic = 0;
-    double totalTraffic = 0;
-    if (profileSubscriptionInfo != null && profileSubscriptionInfo.total > 0) {
-      usedTraffic = (profileSubscriptionInfo.upload + profileSubscriptionInfo.download).toDouble();
-      totalTraffic = profileSubscriptionInfo.total.toDouble();
-    } else if (subscriptionInfo.transferEnable != null && subscriptionInfo.transferEnable! > 0) {
-      totalTraffic = subscriptionInfo.transferEnable!.toDouble();
-      usedTraffic = (subscriptionInfo.u ?? 0).toDouble() + (subscriptionInfo.d ?? 0).toDouble();
+    if (profileSubscriptionInfo == null || profileSubscriptionInfo.total <= 0) {
+      return null;
     }
-    if (totalTraffic <= 0) return null;
+    
+    final usedTraffic = (profileSubscriptionInfo.upload + profileSubscriptionInfo.download).toDouble();
+    final totalTraffic = profileSubscriptionInfo.total.toDouble();
     final usageRatio = usedTraffic / totalTraffic;
+    
     if (usageRatio >= 0.95) {
       return SubscriptionStatusResult(
         type: SubscriptionStatusType.exhausted,

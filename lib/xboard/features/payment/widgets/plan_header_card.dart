@@ -5,7 +5,7 @@ import '../utils/price_calculator.dart';
 
 /// 套餐信息头部卡片
 class PlanHeaderCard extends StatelessWidget {
-  final PlanData plan;
+  final Plan plan;
 
   const PlanHeaderCard({
     super.key,

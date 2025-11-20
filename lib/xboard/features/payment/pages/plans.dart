@@ -14,7 +14,7 @@ class PlansView extends ConsumerStatefulWidget {
   ConsumerState<PlansView> createState() => _PlansViewState();
 }
 class _PlansViewState extends ConsumerState<PlansView> {
-  PlanData? _selectedPlan; // 桌面端选中的套餐
+  Plan? _selectedPlan; // 桌面端选中的套餐
   bool _hasCheckedUrlParams = false; // 标记是否已检查URL参数
   
   @override
@@ -42,13 +42,13 @@ class _PlansViewState extends ConsumerState<PlansView> {
       if (planId != null) {
         // 查找对应的套餐
         final plans = ref.read(xboardSubscriptionProvider);
-        final plan = plans.cast<PlanData?>().firstWhere(
+        final plan = plans.cast<Plan?>().firstWhere(
           (p) => p?.id == planId,
           orElse: () => null,
         );
         
         if (plan != null) {
-          commonPrint.log('[PlansView] 从URL参数中获取套餐ID: $planId，自动选中套餐: ${plan.name}');
+          // UI层：从URL参数选中套餐
           setState(() {
             _selectedPlan = plan;
           });
@@ -77,7 +77,7 @@ class _PlansViewState extends ConsumerState<PlansView> {
     }
     return '${transferEnable.toStringAsFixed(0)}GB';
   }
-  String _getLowestPrice(PlanData plan) {
+  String _getLowestPrice(Plan plan) {
     List<double> prices = [];
     if (plan.monthPrice != null) prices.add(plan.monthPrice!);
     if (plan.quarterPrice != null) prices.add(plan.quarterPrice!);
@@ -90,13 +90,13 @@ class _PlansViewState extends ConsumerState<PlansView> {
     final lowestPrice = prices.reduce((a, b) => a < b ? a : b);
     return _formatPrice(lowestPrice);
   }
-  String _getSpeedLimitText(PlanData plan) {
+  String _getSpeedLimitText(Plan plan) {
     if (plan.speedLimit == null) {
       return AppLocalizations.of(context).xboardUnlimited; // 不限速
     }
     return '${plan.speedLimit} Mbps';
   }
-  Widget _buildPlanCard(PlanData plan) {
+  Widget _buildPlanCard(Plan plan) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth > 768;
     return Card(
@@ -188,7 +188,7 @@ class _PlansViewState extends ConsumerState<PlansView> {
       ),
     );
   }
-  void _navigateToPurchase(PlanData plan) {
+  void _navigateToPurchase(Plan plan) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth > 768;
     

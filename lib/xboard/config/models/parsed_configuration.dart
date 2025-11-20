@@ -9,6 +9,7 @@ import 'subscription_info.dart';
 /// 
 /// 包含所有类型的配置信息
 class ParsedConfiguration {
+  final String panelType;  // 面板类型：xboard 或 v2board
   final PanelConfiguration panels;
   final List<ProxyInfo> proxies;
   final List<WebSocketInfo> webSockets;
@@ -20,6 +21,7 @@ class ParsedConfiguration {
   final ConfigMetadata metadata;
 
   const ParsedConfiguration({
+    required this.panelType,
     required this.panels,
     required this.proxies,
     required this.webSockets,
@@ -36,6 +38,12 @@ class ParsedConfiguration {
     Map<String, dynamic> json,
     String currentProvider,
   ) {
+    // 读取面板类型，必填字段
+    final panelType = json['panelType'] as String?;
+    if (panelType == null || panelType.isEmpty) {
+      throw Exception('panelType is required in configuration');
+    }
+
     final panelsData = json['panels'] as Map<String, dynamic>? ?? {};
     final proxyList = json['proxy'] as List<dynamic>? ?? [];
     final wsList = json['ws'] as List<dynamic>? ?? [];
@@ -44,6 +52,7 @@ class ParsedConfiguration {
     final subscriptionData = json['subscription'] as Map<String, dynamic>?;
 
     return ParsedConfiguration(
+      panelType: panelType,  // 面板类型
       panels: PanelConfiguration.fromJson(panelsData, currentProvider),
       proxies: proxyList
           .map((item) => ProxyInfo.fromJson(item as Map<String, dynamic>))

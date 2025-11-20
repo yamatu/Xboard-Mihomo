@@ -1,12 +1,16 @@
-import 'package:fl_clash/xboard/sdk/xboard_sdk.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/xboard/sdk/xboard_sdk.dart';
 import 'package:fl_clash/xboard/features/auth/auth.dart';
 import 'package:fl_clash/xboard/features/payment/payment.dart';
-import 'package:fl_clash/xboard/features/auth/providers/xboard_user_provider.dart';
+import 'package:fl_clash/xboard/core/core.dart';
+
+// 初始化文件级日志器
+final _logger = FileLogger('xboard_payment_provider.dart');
+
 final pendingOrdersProvider = StateProvider<List<OrderData>>((ref) => []);
 final paymentMethodsProvider = StateProvider<List<PaymentMethodData>>((ref) => []);
 final paymentProcessStateProvider = StateProvider<PaymentProcessState>((ref) => const PaymentProcessState());
+
 class XBoardPaymentNotifier extends Notifier<void> {
   @override
   void build() {
@@ -29,7 +33,7 @@ class XBoardPaymentNotifier extends Notifier<void> {
         loadPaymentMethods(),
       ]);
     } catch (e) {
-      commonPrint.log('加载支付初始数据失败: $e');
+      _logger.info('加载支付初始数据失败: $e');
     }
   }
   Future<void> loadPendingOrders() async {
@@ -40,15 +44,15 @@ class XBoardPaymentNotifier extends Notifier<void> {
     }
     ref.read(userUIStateProvider.notifier).state = const UIState(isLoading: true);
     try {
-      commonPrint.log('加载待支付订单...');
+      _logger.info('加载待支付订单...');
       final orders = await XBoardSDK.getOrders();
       // status: 0=待付款, 1=开通中, 2=已取消, 3=已完成, 4=已折抵
       final pendingOrders = orders.where((order) => order.status == 0).toList();
       ref.read(pendingOrdersProvider.notifier).state = pendingOrders;
       ref.read(userUIStateProvider.notifier).state = const UIState(isLoading: false);
-      commonPrint.log('待支付订单加载成功，共 ${pendingOrders.length} 个');
+      _logger.info('待支付订单加载成功，共 ${pendingOrders.length} 个');
     } catch (e) {
-      commonPrint.log('加载待支付订单失败: $e');
+      _logger.info('加载待支付订单失败: $e');
       ref.read(userUIStateProvider.notifier).state = UIState(
         isLoading: false,
         errorMessage: e.toString(),
@@ -63,12 +67,12 @@ class XBoardPaymentNotifier extends Notifier<void> {
       return;
     }
     try {
-      commonPrint.log('加载支付方式...');
+      _logger.info('加载支付方式...');
       final List<PaymentMethodData> paymentMethods = await XBoardSDK.getPaymentMethods();
       ref.read(paymentMethodsProvider.notifier).state = paymentMethods;
-      commonPrint.log('支付方式加载成功，共 ${paymentMethods.length} 个');
+      _logger.info('支付方式加载成功，共 ${paymentMethods.length} 个');
     } catch (e) {
-      commonPrint.log('加载支付方式失败: $e');
+      _logger.info('加载支付方式失败: $e');
       ref.read(userUIStateProvider.notifier).state = UIState(
         errorMessage: e.toString(),
       );
@@ -88,7 +92,7 @@ class XBoardPaymentNotifier extends Notifier<void> {
     }
     ref.read(userUIStateProvider.notifier).state = const UIState(isLoading: true);
     try {
-      commonPrint.log('创建订单: planId=$planId, period=$period, couponCode=$couponCode');
+      _logger.info('创建订单: planId=$planId, period=$period, couponCode=$couponCode');
 
       // 先取消待支付订单
       await cancelPendingOrders();
@@ -106,7 +110,7 @@ class XBoardPaymentNotifier extends Notifier<void> {
         );
         ref.read(userUIStateProvider.notifier).state = const UIState(isLoading: false);
         await loadPendingOrders();
-        commonPrint.log('订单创建成功: tradeNo=$tradeNo');
+        _logger.info('订单创建成功: tradeNo=$tradeNo');
         await Future.delayed(const Duration(seconds: 1)); // 添加延迟，确保订单在服务器端完全就绪
         return tradeNo;
       } else {
@@ -117,7 +121,7 @@ class XBoardPaymentNotifier extends Notifier<void> {
         return null;
       }
     } catch (e) {
-      commonPrint.log('创建订单失败: $e');
+      _logger.info('创建订单失败: $e');
       ref.read(userUIStateProvider.notifier).state = UIState(
         isLoading: false,
         errorMessage: e.toString(),
@@ -144,7 +148,7 @@ class XBoardPaymentNotifier extends Notifier<void> {
       isProcessingPayment: true,
     );
     try {
-      commonPrint.log('提交支付: tradeNo=$tradeNo, method=$method');
+      _logger.info('提交支付: tradeNo=$tradeNo, method=$method');
 
       // 调用域名服务提交支付，返回支付结果
       final paymentResult = await XBoardSDK.submitPayment(
@@ -158,12 +162,12 @@ class XBoardPaymentNotifier extends Notifier<void> {
 
       if (paymentResult != null) {
         await loadPendingOrders();
-        commonPrint.log('支付提交成功，结果: $paymentResult');
+        _logger.info('支付提交成功，结果: $paymentResult');
         return paymentResult;
       }
       return null;
     } catch (e) {
-      commonPrint.log('支付提交失败: $e');
+      _logger.info('支付提交失败: $e');
       ref.read(paymentProcessStateProvider.notifier).state = const PaymentProcessState(
         isProcessingPayment: false,
       );
@@ -197,17 +201,17 @@ class XBoardPaymentNotifier extends Notifier<void> {
               canceledCount++;
             }
           } catch (e) {
-            commonPrint.log('取消订单失败: ${order.tradeNo}, 错误: $e');
+            _logger.info('取消订单失败: ${order.tradeNo}, 错误: $e');
           }
         }
       }
 
       ref.read(userUIStateProvider.notifier).state = const UIState(isLoading: false);
       await loadPendingOrders();
-      commonPrint.log('取消订单成功，共取消 $canceledCount 个订单');
+      _logger.info('取消订单成功，共取消 $canceledCount 个订单');
       return canceledCount;
     } catch (e) {
-      commonPrint.log('取消订单失败: $e');
+      _logger.info('取消订单失败: $e');
       ref.read(userUIStateProvider.notifier).state = UIState(
         isLoading: false,
         errorMessage: e.toString(),

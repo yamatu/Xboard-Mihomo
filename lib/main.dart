@@ -73,12 +73,9 @@ Future<void> _loadSecurityConfig() async {
     final certEnabled = certConfig['enabled'] as bool? ?? true;
     
     if (certEnabled && certPath != null && certPath.isNotEmpty) {
-      // 设置证书路径（需要添加 packages/ 前缀）
-      final fullCertPath = certPath.startsWith('packages/') 
-          ? certPath 
-          : 'packages/$certPath';
-      DomainRacingService.setCertificatePath(fullCertPath);
-      print('[Main] 证书路径配置: $fullCertPath');
+      // 直接使用配置中的证书路径（已经是相对于项目根目录的完整路径）
+      DomainRacingService.setCertificatePath(certPath);
+      print('[Main] 证书路径配置: $certPath');
     }
     
     // 其他安全配置可以在这里加载
@@ -110,11 +107,10 @@ Future<void> _initializeXBoardServices() async {
     final sdkConfig = await ConfigFileLoaderHelper.getSdkConfig();
     final domainConfig = await ConfigFileLoaderHelper.getDomainServiceConfig();
     
-    // 4. 初始化XBoard SDK
+    // 4. 初始化XBoard SDK（使用域名竞速）
     await XBoardSDK.initialize(
       configProvider: XBoardConfig.provider,
-      baseUrl: null, // 没有基础URL，完全依赖域名服务
-      strategy: 'race_fastest',
+      baseUrl: null, // 没有基础URL，使用域名竞速自动选择最快的
     );
     
     print('[Main] XBoard SDK初始化成功');

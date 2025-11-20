@@ -7,8 +7,8 @@ import 'package:fl_clash/state.dart';
 import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/xboard/features/profile/profile.dart';
 import 'package:fl_clash/xboard/features/subscription/services/encrypted_subscription_service.dart';
+import 'package:fl_clash/xboard/features/subscription/services/subscription_downloader.dart';
 import 'package:fl_clash/xboard/features/subscription/utils/utils.dart';
-import 'package:fl_clash/xboard/features/profile/services/profile_subscription_info_service.dart';
 import 'package:fl_clash/xboard/core/core.dart';
 import 'package:fl_clash/xboard/config/utils/config_file_loader.dart';
 
@@ -119,35 +119,27 @@ class XBoardProfileImportService {
       // 先检查用户配置是否禁用了加密订阅
       final preferEncrypt = await ConfigFileLoaderHelper.getPreferEncrypt();
       
-      if (!preferEncrypt) {
-        // 用户明确禁用加密，直接使用标准下载方式
-        _logger.info('⚙️ 用户配置禁用加密订阅，使用标准下载方式');
-        final profile = await Profile.normal(url: url).update().timeout(
-          downloadTimeout,
-          onTimeout: () {
-            throw TimeoutException('下载超时', downloadTimeout);
-          },
-        );
-        _logger.info('配置下载和验证成功: ${profile.label ?? profile.id}');
-        return profile;
-      }
-      
       // 用户启用加密，检查URL是否需要使用加密订阅服务
-      if (SubscriptionUrlHelper.shouldUseEncryptedService(url)) {
+      if (preferEncrypt && SubscriptionUrlHelper.shouldUseEncryptedService(url)) {
         _logger.info('🔐 检测到加密订阅URL且用户启用加密，使用加密解密服务');
         return await _downloadEncryptedProfile(url);
       }
       
-      // 使用标准方式下载
-      _logger.info('📄 使用标准方式下载普通订阅');
-      final profile = await Profile.normal(url: url).update().timeout(
+      // 使用 XBoard 订阅下载服务
+      _logger.info('📄 使用 XBoard 订阅下载服务（并发竞速）');
+      final profile = await SubscriptionDownloader.downloadSubscription(
+        url,
+        enableRacing: true,
+      ).timeout(
         downloadTimeout,
         onTimeout: () {
           throw TimeoutException('下载超时', downloadTimeout);
         },
       );
+      
       _logger.info('配置下载和验证成功: ${profile.label ?? profile.id}');
       return profile;
+      
     } on TimeoutException catch (e) {
       throw Exception('下载超时: ${e.message}');
     } on SocketException catch (e) {

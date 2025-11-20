@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fl_clash/xboard/utils/xboard_notification.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/xboard/features/invite/providers/invite_provider.dart';
@@ -24,7 +25,7 @@ class _TransferDialogState extends ConsumerState<TransferDialog> {
   @override
   Widget build(BuildContext context) {
     final inviteState = ref.read(inviteProvider);
-    final double maxAmount = inviteState.totalCommission / 100.0;
+    final double maxAmount = inviteState.availableCommission / 100.0;  // 使用可用佣金而不是总佣金
 
     return AlertDialog(
       title: Text(appLocalizations.transferToWallet),
@@ -78,7 +79,7 @@ class _TransferDialogState extends ConsumerState<TransferDialog> {
                         key: const ValueKey('loading-text'),
                       )
                     : Text(
-                        appLocalizations.maxTransferable((inviteState.totalCommission / 100.0).toStringAsFixed(2)),
+                        appLocalizations.maxTransferable((inviteState.availableCommission / 100.0).toStringAsFixed(2)),
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -112,16 +113,15 @@ class _TransferDialogState extends ConsumerState<TransferDialog> {
         ],
       ),
       actions: [
-        if (!_isTransferring) ...[
+        if (!_isTransferring && !_isSuccess) ...[
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text(_isSuccess ? appLocalizations.complete : appLocalizations.cancel),
+            child: Text(appLocalizations.cancel),
           ),
-          if (!_isSuccess)
-            ElevatedButton(
-              onPressed: () => _performTransfer(maxAmount),
-              child: Text(appLocalizations.confirmTransfer),
-            ),
+          ElevatedButton(
+            onPressed: () => _performTransfer(maxAmount),
+            child: Text(appLocalizations.confirmTransfer),
+          ),
         ],
       ],
     );
@@ -131,28 +131,22 @@ class _TransferDialogState extends ConsumerState<TransferDialog> {
     final amountText = _amountController.text.trim();
     if (amountText.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(appLocalizations.enterTransferAmountError)),
-        );
+        XBoardNotification.showError(appLocalizations.enterTransferAmountError);
       }
       return;
     }
     
-    final amount = int.tryParse(amountText);
+    final amount = double.tryParse(amountText);
     if (amount == null || amount <= 0) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(appLocalizations.invalidTransferAmount)),
-        );
+        XBoardNotification.showError(appLocalizations.invalidTransferAmount);
       }
       return;
     }
     
     if (amount > maxAmount) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(appLocalizations.transferAmountExceeded(maxAmount.toStringAsFixed(2)))),
-        );
+        XBoardNotification.showError(appLocalizations.transferAmountExceeded(maxAmount.toStringAsFixed(2)));
       }
       return;
     }
@@ -171,17 +165,19 @@ class _TransferDialogState extends ConsumerState<TransferDialog> {
         });
         
         if (result != null && result.success) {
+          // 成功后显示动画，然后自动关闭
           await Future.delayed(const Duration(milliseconds: 1500));
-          if (mounted) {
+          if (mounted && Navigator.of(context).canPop()) {
             Navigator.of(context).pop();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(appLocalizations.transferSuccessMsg(amount.toStringAsFixed(2)))),
-            );
+            // 关闭后显示提示
+            Future.microtask(() {
+              if (mounted) {
+                XBoardNotification.showSuccess(appLocalizations.transferSuccessMsg(amount.toStringAsFixed(2)));
+              }
+            });
           }
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(appLocalizations.transferFailed(result?.message ?? "未知错误"))),
-          );
+          XBoardNotification.showError(appLocalizations.transferFailed(result?.message ?? "未知错误"));
         }
       }
     } catch (e) {
@@ -190,9 +186,7 @@ class _TransferDialogState extends ConsumerState<TransferDialog> {
           _isTransferring = false;
           _isSuccess = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(appLocalizations.transferFailed(e.toString()))),
-        );
+        XBoardNotification.showError(appLocalizations.transferFailed(e.toString()));
       }
     }
   }

@@ -1,8 +1,8 @@
-import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/pages/pages.dart';
 import 'package:fl_clash/xboard/sdk/xboard_sdk.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:fl_clash/xboard/utils/xboard_notification.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 class SubscriptionPage extends ConsumerStatefulWidget {
   const SubscriptionPage({super.key});
@@ -48,11 +48,9 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage> {
       await Clipboard.setData(
         ClipboardData(text: _subscriptionUrl!),
       );
-      commonPrint.log('复制订阅链接: $_subscriptionUrl');
+      // 复制操作日志 (UI层)
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('订阅链接已复制到剪贴板')),
-        );
+        XBoardNotification.showSuccess('订阅链接已复制到剪贴板');
       }
     }
   }

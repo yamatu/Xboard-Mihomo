@@ -1,5 +1,6 @@
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:fl_clash/xboard/utils/xboard_notification.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -58,25 +59,14 @@ class _PaymentGatewayPageState extends ConsumerState<PaymentGatewayPage> {
         throw Exception('无法启动外部浏览器');
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(isAutomatic 
-              ? '🚀 正在自动打开支付页面，完成支付后请返回应用'
-              : '已在浏览器中打开支付页面，完成支付后请返回应用'),
-            backgroundColor: Colors.blue,
-            duration: Duration(seconds: isAutomatic ? 3 : 4),
-          ),
-        );
+        XBoardNotification.showInfo(isAutomatic
+            ? '🚀 正在自动打开支付页面，完成支付后请返回应用'
+            : '已在浏览器中打开支付页面，完成支付后请返回应用');
         _startAutoPolling();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('打开支付链接失败: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        XBoardNotification.showError('打开支付链接失败: $e');
       }
     }
   }
@@ -84,21 +74,11 @@ class _PaymentGatewayPageState extends ConsumerState<PaymentGatewayPage> {
     try {
       await Clipboard.setData(ClipboardData(text: widget.paymentUrl));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('支付链接已复制到剪贴板'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        XBoardNotification.showSuccess('支付链接已复制到剪贴板');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('复制失败: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        XBoardNotification.showError('复制失败: $e');
       }
     }
   }
@@ -143,13 +123,7 @@ class _PaymentGatewayPageState extends ConsumerState<PaymentGatewayPage> {
         if (order != null) {
           if (order.status == 2) {
             _stopAutoPolling();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('🎉 支付成功！'),
-                backgroundColor: Colors.green,
-                duration: Duration(seconds: 3),
-              ),
-            );
+            XBoardNotification.showSuccess('🎉 支付成功！');
             Future.delayed(const Duration(seconds: 1), () {
               if (mounted) {
                 Navigator.of(context).popUntil((route) => route.isFirst);
@@ -158,29 +132,16 @@ class _PaymentGatewayPageState extends ConsumerState<PaymentGatewayPage> {
           } else if (order.status == 3) {
             _stopAutoPolling();
             if (!silent) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('支付已取消'),
-                  backgroundColor: Colors.orange,
-                ),
-              );
+              XBoardNotification.showInfo('支付已取消');
             }
           } else if (order.status == 1) {
             if (!silent) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(_autoPollingEnabled ? '正在等待支付...' : '订单状态：待支付'),
-                  backgroundColor: Colors.blue,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
+              XBoardNotification.showInfo(_autoPollingEnabled ? '正在等待支付...' : '订单状态：待支付');
             }
           }
         } else {
           if (!silent) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('未找到订单信息')),
-            );
+            XBoardNotification.showError('未找到订单信息');
           }
         }
       }
@@ -190,17 +151,13 @@ class _PaymentGatewayPageState extends ConsumerState<PaymentGatewayPage> {
           _isCheckingPayment = false;
         });
         if (!silent) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('检查支付状态失败: $e')),
-          );
+          XBoardNotification.showError('检查支付状态失败: $e');
         }
       }
     }
   }
   void _completePayment() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('支付完成！')),
-    );
+    XBoardNotification.showSuccess('支付完成！');
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
   void _cancelPayment() {

@@ -82,7 +82,7 @@ final List<RouteBase> routes = [
       path: '/plans/purchase',
       name: 'plan_purchase',
       pageBuilder: (context, state) {
-        final plan = state.extra as PlanData;
+        final plan = state.extra as Plan;
         return MaterialPage(
           child: PlanPurchasePage(plan: plan),
         );

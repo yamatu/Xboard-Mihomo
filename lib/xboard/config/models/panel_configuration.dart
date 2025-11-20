@@ -53,20 +53,21 @@ class PanelConfiguration {
   /// 
   /// 对当前提供商的所有面板URL进行并发测试，返回响应最快的URL
   /// 如果所有URL都失败，则返回第一个URL作为回退
-  /// 注意：返回的URL会强制转换为HTTPS格式，以适配SDK的私有证书配置
+  /// 注意：返回的URL会保持原始格式
   Future<String?> getFastestUrl() async {
     final panels = currentProviderPanels;
     if (panels.isEmpty) return null;
     if (panels.length == 1) return panels.first.url;
 
     final domains = panels.map((panel) => panel.url).toList();
-    final fastestDomain = await DomainRacingService.raceSelectFastestDomain(
+    if (domains.isEmpty) return null;
+    
+    final racingResult = await DomainRacingService.raceSelectFastestDomain(
       domains,
-      forceHttpsResult: true, // 强制返回HTTPS格式，适配SDK私有证书
+      forceHttpsResult: false, // 保持原始格式
     );
     
-    // 如果竞速失败，回退到第一个URL
-    return fastestDomain ?? domains.first;
+    return racingResult?.domain ?? domains.first;
   }
 
   /// 获取当前提供商所有面板的URL列表

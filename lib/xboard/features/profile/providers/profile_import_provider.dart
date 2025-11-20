@@ -1,14 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/xboard/features/profile/profile.dart';
 import 'package:fl_clash/xboard/features/profile/services/profile_import_service.dart';
+import 'package:fl_clash/xboard/core/core.dart';
+
+// 初始化文件级日志器
+final _logger = FileLogger('profile_import_provider.dart');
 class ProfileImportNotifier extends StateNotifier<ImportState> {
   final Ref _ref;
   
   ProfileImportNotifier(this._ref) : super(const ImportState());
   
   Future<bool> importSubscription(String url, {bool forceRefresh = false}) async {
-    commonPrint.log('ProfileImport: 开始导入订阅: $url, forceRefresh: $forceRefresh');
+    _logger.info('开始导入订阅: $url, forceRefresh: $forceRefresh');
     
     state = state.copyWith(
       status: ImportStatus.downloading,
@@ -56,10 +59,10 @@ class ProfileImportNotifier extends StateNotifier<ImportState> {
   Future<bool> retryLastImport() async {
     final url = state.currentUrl;
     if (url == null || url.isEmpty) {
-      commonPrint.log('ProfileImport: 没有可重试的导入URL');
+      _logger.info('没有可重试的导入URL');
       return false;
     }
-    commonPrint.log('ProfileImport: 重试导入: $url');
+    _logger.info('重试导入: $url');
     return await importSubscription(url);
   }
   void cancelImport() {
@@ -70,11 +73,11 @@ class ProfileImportNotifier extends StateNotifier<ImportState> {
         message: '导入已取消',
       );
     }
-    commonPrint.log('ProfileImport: 请求取消导入操作');
+    _logger.info('请求取消导入操作');
   }
   void clearState() {
     state = const ImportState();
-    commonPrint.log('ProfileImport: 请求清除导入状态');
+    _logger.info('请求清除导入状态');
   }
   void clearError() {
     if (state.lastResult?.isSuccess == false) {

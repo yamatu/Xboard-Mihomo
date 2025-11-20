@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'package:flutter_xboard_sdk/flutter_xboard_sdk.dart';
 import 'package:fl_clash/xboard/core/core.dart';
-import 'package:fl_clash/xboard/config/interface/config_provider_interface.dart';
-import 'package:fl_clash/xboard/config/utils/config_file_loader.dart';
 import 'package:fl_clash/xboard/infrastructure/http/user_agent_config.dart';
+import 'package:fl_clash/xboard/config/xboard_config.dart';
 
 // 初始化文件级日志器
 final _logger = FileLogger('xboard_client.dart');
@@ -44,14 +43,10 @@ class XBoardClient {
   ///
   /// [configProvider] 配置提供者（可选，如果不提供则需要确保XBoardConfig已初始化）
   /// [baseUrl] 可选的直接指定基础URL（优先级最高）
-  /// [strategy] 初始化策略:
-  ///   - 'race_fastest': 竞速模式，选择最快的面板URL (默认)
-  ///   - 'first': 使用第一个面板URL
   /// [config] 额外配置参数
   Future<void> initialize({
     ConfigProviderInterface? configProvider,
     String? baseUrl,
-    String strategy = 'race_fastest',
     Map<String, dynamic>? config,
   }) async {
     if (_isInitialized) return;
@@ -62,7 +57,7 @@ class XBoardClient {
     _initCompleter = Completer<void>();
 
     try {
-      _logger.info('[SDK] 开始初始化 XBoardClient，策略: $strategy');
+      _logger.info('[SDK] 开始初始化 XBoardClient (使用域名竞速)');
 
       // 保存配置提供者
       _configProvider = configProvider;
@@ -70,29 +65,39 @@ class XBoardClient {
       // 获取面板URL
       String? panelUrl = baseUrl;
       
-      if (panelUrl == null) {
-        // 没有直接指定baseUrl，从配置提供者获取
-        if (_configProvider == null) {
+      // 如果没有直接提供 baseUrl，使用域名竞速选择最快的
+      if (panelUrl == null && _configProvider != null) {
+        _logger.info('[SDK] 开始域名竞速...');
+        panelUrl = await _configProvider!.getFastestPanelUrl();
+        
+        if (panelUrl == null) {
           throw XBoardConfigException(
-            message: '未提供配置提供者且未指定baseUrl',
-            code: 'CONFIG_PROVIDER_MISSING',
+            message: '域名竞速失败：所有面板域名都无法连接，请检查网络或配置文件',
+            code: 'DOMAIN_RACING_FAILED',
           );
         }
-
-        // 根据策略选择面板URL
-        if (strategy == 'race_fastest') {
-          panelUrl = await _configProvider!.getFastestPanelUrl();
-          _logger.info('[SDK] 使用竞速模式选择面板地址: $panelUrl');
-        } else {
-          panelUrl = _configProvider!.getPanelUrl();
-          _logger.info('[SDK] 使用默认模式选择面板地址: $panelUrl');
-        }
+        
+        _logger.info('[SDK] 域名竞速完成，使用最快域名: $panelUrl');
       }
 
       if (panelUrl == null) {
         throw XBoardConfigException(
-          message: '无法获取面板地址',
+          message: '无法获取面板地址，请检查配置文件或提供 baseUrl 参数',
           code: 'PANEL_URL_NOT_FOUND',
+        );
+      }
+
+      // 获取面板类型
+      String? panelType;
+      if (_configProvider != null) {
+        panelType = _configProvider!.getPanelType();
+        _logger.info('[SDK] 从配置提供者获取面板类型: $panelType');
+      }
+      
+      if (panelType == null || panelType.isEmpty) {
+        throw XBoardConfigException(
+          message: '无法获取面板类型，请检查配置文件中的 panel_type 配置',
+          code: 'PANEL_TYPE_NOT_FOUND',
         );
       }
 
@@ -102,9 +107,24 @@ class XBoardClient {
       _logger.info('[SDK] HTTP 配置加载完成: UA=${httpConfig.userAgent != null ? "已设置" : "默认"}, '
           '混淆前缀=${httpConfig.obfuscationPrefix != null ? "已设置" : "未设置"}');
 
-      // 初始化 SDK（传递 httpConfig）
+      // 根据竞速结果决定是否使用代理
+      String? proxyUrl;
+      final racingResult = XBoardConfig.lastRacingResult;
+      if (racingResult != null && racingResult.useProxy) {
+        proxyUrl = racingResult.proxyUrl;
+        _logger.info('[SDK] 竞速结果：使用代理 $proxyUrl');
+      } else {
+        _logger.info('[SDK] 竞速结果：使用直连');
+      }
+
+      // 初始化 SDK
       _sdk = XBoardSDK.instance;
-      await _sdk!.initialize(panelUrl, httpConfig: httpConfig);
+      await _sdk!.initialize(
+        panelUrl,
+        panelType: panelType,
+        proxyUrl: proxyUrl,  // 传递代理配置
+        httpConfig: httpConfig,
+      );
       _currentPanelUrl = panelUrl;
 
       _isInitialized = true;
@@ -148,35 +168,42 @@ class XBoardClient {
     return _currentPanelUrl;
   }
 
-  /// 切换到最快的面板URL（重新竞速）
+  /// 切换到最快的面板URL
   Future<void> switchToFastestDomain() async {
-    if (_configProvider == null) {
-      _logger.warning('[SDK] 没有配置提供者，无法切换域名');
-      return;
+    if (!_isInitialized) {
+      throw XBoardConfigException(
+        message: 'SDK未初始化，请先调用initialize()',
+        code: 'SDK_NOT_INITIALIZED',
+      );
     }
 
     _logger.info('[SDK] 开始切换到最快的面板URL');
     
     final fastestUrl = await _configProvider!.getFastestPanelUrl();
     if (fastestUrl == null) {
-      _logger.warning('[SDK] 无法获取最快的面板URL');
-      return;
+      _logger.warning('[SDK] 域名竞速失败：所有域名都无法连接');
+      throw XBoardConfigException(
+        message: '域名竞速失败：所有域名都无法连接',
+        code: 'DOMAIN_RACING_FAILED',
+      );
     }
+
+    _logger.info('[SDK] 域名竞速完成，最快URL: $fastestUrl');
 
     if (fastestUrl == _currentPanelUrl) {
-      _logger.info('[SDK] 当前URL已经是最快的: $fastestUrl');
+      _logger.info('[SDK] 最快URL与当前URL相同，无需切换');
       return;
     }
 
-    _logger.info('[SDK] 切换面板URL: $_currentPanelUrl -> $fastestUrl');
+    _logger.info('[SDK] 正在切换到新面板URL: $fastestUrl');
     
     // 重新初始化SDK
     _isInitialized = false;
     _initCompleter = null;
+    
     await initialize(
       configProvider: _configProvider,
       baseUrl: fastestUrl,
-      strategy: 'first',
     );
   }
 

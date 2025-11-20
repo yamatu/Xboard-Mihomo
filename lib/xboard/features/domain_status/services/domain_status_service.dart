@@ -129,11 +129,10 @@ class DomainStatusService {
   Future<void> _initializeXBoardService(String domain) async {
     try {
       _logger.info('初始化XBoard服务: $domain');
-      
+      // 使用当前域名重新初始化XBoard服务
       await XBoardSDK.initialize(
         configProvider: XBoardConfig.provider,
         baseUrl: domain,
-        strategy: 'first',
       );
       
       _logger.info('XBoard服务初始化成功');

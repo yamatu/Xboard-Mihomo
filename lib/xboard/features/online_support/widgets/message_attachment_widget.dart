@@ -1,6 +1,7 @@
 import 'package:fl_clash/xboard/core/core.dart';
 import 'package:fl_clash/xboard/infrastructure/infrastructure.dart';
 import 'package:flutter/material.dart';
+import 'package:fl_clash/xboard/utils/xboard_notification.dart';
 import 'package:fl_clash/xboard/features/online_support/models/message_model.dart';
 
 import 'package:fl_clash/xboard/features/online_support/services/service_config.dart';
@@ -216,16 +217,12 @@ class _MessageAttachmentWidgetState extends State<MessageAttachmentWidget> {
         await launchUrl(uri);
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('无法打开文件')),
-          );
+          XBoardNotification.showError('无法打开文件');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('打开文件失败: $e')),
-        );
+        XBoardNotification.showError('打开文件失败: $e');
       }
     }
   }

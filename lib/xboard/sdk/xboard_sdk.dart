@@ -46,7 +46,7 @@ final _logger = FileLogger('xboard_sdk.dart');
 // ========== 为了向后兼容，提供类型别名 ==========
 typedef UserInfoData = sdk.UserInfo;
 typedef SubscriptionData = sdk.SubscriptionInfo;
-typedef PlanData = sdk.Plan;
+typedef Plan = sdk.Plan;
 typedef OrderData = sdk.Order;
 typedef PaymentMethodData = sdk.PaymentMethodInfo;
 typedef PaymentMethod = sdk.PaymentMethodInfo;  // 主要别名
@@ -104,34 +104,6 @@ class XBoardSDK {
   static XBoardClient get _client => XBoardClient.instance;
   static sdk.XBoardSDK get _sdk => _client.sdk;
 
-  // ========== 直接访问底层 SDK API（仅供向后兼容） ==========
-  /// @nodoc 直接访问底层SDK的invite模块
-  static sdk.InviteApi get invite => _sdk.invite;
-  
-  /// @nodoc 直接访问底层SDK的order模块  
-  static sdk.OrderApi get order => _sdk.order;
-  
-  /// @nodoc 直接访问底层SDK的payment模块
-  static sdk.PaymentApi get payment => _sdk.payment;
-  
-  /// @nodoc 直接访问底层SDK的userInfo模块
-  static sdk.UserInfoApi get userInfo => _sdk.userInfo;
-  
-  /// @nodoc 直接访问底层SDK的subscription模块
-  static sdk.SubscriptionApi get subscription => _sdk.subscription;
-  
-  /// @nodoc 直接访问底层SDK的coupon模块
-  static sdk.CouponApi get coupon => _sdk.coupon;
-  
-  /// @nodoc 直接访问底层SDK的balance模块
-  static sdk.BalanceApi get balance => _sdk.balance;
-  
-  /// @nodoc 直接访问底层SDK的notice模块
-  static sdk.NoticeApi get notice => _sdk.notice;
-  
-  /// @nodoc 直接访问底层SDK的app模块
-  static sdk.AppApi get app => _sdk.app;
-
   // ========== 生命周期管理 ==========
 
   /// 初始化 SDK
@@ -140,16 +112,13 @@ class XBoardSDK {
   ///
   /// [configProvider] 配置提供者（必需）
   /// [baseUrl] 可选的基础URL，如果不为null则直接使用，不从配置读取
-  /// [strategy] 初始化策略: 'race_fastest' 或 'first'
   static Future<void> initialize({
     required ConfigProviderInterface configProvider,
     String? baseUrl,
-    String strategy = 'race_fastest',
   }) async {
     return _client.initialize(
       configProvider: configProvider,
       baseUrl: baseUrl,
-      strategy: strategy,
     );
   }
 
@@ -188,11 +157,15 @@ class XBoardSDK {
       return false;
     } catch (e) {
       _logger.error('[SDK] 登录失败', e);
-      return false;
+      rethrow; // 重新抛出异常，让 UI 层可以获取详细错误信息
     }
   }
 
   /// 注册
+  /// [email] 邮箱
+  /// [password] 密码
+  /// [inviteCode] 邀请码（可选）
+  /// [emailCode] 邮箱验证码（可选，根据 config.isEmailVerify 决定是否需要）
   static Future<sdk.UserInfo?> register({
     required String email,
     required String password,
@@ -203,8 +176,8 @@ class XBoardSDK {
       await _sdk.register.register(
         email,
         password,
-        inviteCode ?? '',
-        emailCode ?? '',
+        inviteCode,  // 可以传 null，API 内部会判断
+        emailCode,   // 可以传 null，API 内部会判断
       );
       // 注册成功后返回null，因为API返回的是generic data
       return null;
@@ -233,25 +206,25 @@ class XBoardSDK {
   }) async {
     try {
       final result = await _sdk.resetPassword.resetPassword(
-        email,
-        password,
-        emailCode,
+        email: email,
+        password: password,
+        emailCode: emailCode,
       );
       return result.data ?? false;
     } catch (e) {
       _logger.error('[SDK] 重置密码失败', e);
-      return false;
+      rethrow; // 重新抛出异常，让 UI 层可以获取详细错误信息
     }
   }
 
   /// 发送验证码
   static Future<bool> sendVerificationCode(String email) async {
     try {
-      final result = await _sdk.sendEmailCode.sendVerificationCode(email);
+      final result = await _sdk.sendEmailCode.sendEmailCode(email);
       return result.success;
     } catch (e) {
       _logger.error('[SDK] 发送验证码失败', e);
-      return false;
+      rethrow; // 重新抛出异常，让 UI 层可以获取详细错误信息
     }
   }
 
@@ -305,8 +278,8 @@ class XBoardSDK {
   /// 获取订阅信息
   static Future<sdk.SubscriptionInfo?> getSubscription() async {
     try {
-      final result = await _sdk.subscription.getSubscriptionLink();
-      return result.data;
+      final result = await _sdk.subscription.getSubscriptionInfo();
+      return result;
     } catch (e) {
       _logger.error('[SDK] 获取订阅信息失败', e);
       return null;
@@ -331,7 +304,7 @@ class XBoardSDK {
       return result.data;
     } catch (e) {
       _logger.error('[SDK] 创建订单失败', e);
-      return null;
+      rethrow; // 重新抛出异常，让 UI 层可以获取详细错误信息
     }
   }
 
@@ -384,27 +357,26 @@ class XBoardSDK {
 
   /// 提交支付
   /// 返回 Map 包含 type 和 data
-  /// type: -1 表示余额支付成功, 0 表示跳转支付, 1 表示二维码支付
-  /// data: 支付URL或支付结果
+  /// type: -1 表示免费订单, 0 表示二维码支付, 1 表示URL跳转支付
+  /// data: 对于免费订单(type=-1)是 bool，对于付费订单是支付URL或二维码内容(String)
   static Future<Map<String, dynamic>?> submitPayment({
     required String tradeNo,
     required int method,
   }) async {
     try {
-      final request = sdk.PaymentRequest(tradeNo: tradeNo, method: method.toString());
-      final result = await _sdk.payment.submitOrderPayment(request);
-      // 返回完整的支付结果，包含 type 和 data
-      final data = result.data;
-      if (data != null) {
-        return {
-          'type': data['type'] ?? 0,
-          'data': data['data'],
-        };
-      }
-      return null;
+      final result = await _sdk.order.submitPayment(
+        tradeNo: tradeNo,
+        method: method.toString(),
+      );
+      // CheckoutResult 包含 type 和 data
+      // 注意：免费订单时 data 是 bool，付费订单时 data 是 String
+      return {
+        'type': result.type,
+        'data': result.data, // 保持原始类型，不强制转换
+      };
     } catch (e) {
       _logger.error('[SDK] 提交支付失败', e);
-      return null;
+      rethrow; // 重新抛出异常，让 UI 层可以获取详细错误信息
     }
   }
 
@@ -430,7 +402,7 @@ class XBoardSDK {
   /// 获取邀请信息
   static Future<sdk.InviteInfo?> getInviteInfo() async {
     try {
-      final result = await _sdk.invite.fetchInviteCodes();
+      final result = await _sdk.invite.getInviteInfo();
       return result.data;
     } catch (e) {
       _logger.error('[SDK] 获取邀请信息失败', e);
@@ -474,32 +446,40 @@ class XBoardSDK {
   }
 
   /// 提现佣金
-  /// 注意：SDK中可能没有此API，这里仅作占位
-  static Future<sdk.WithdrawResult?> withdrawCommission({
-    required double amount,
+  /// [withdrawMethod] 提现方式（如：支付宝、微信、银行卡等）
+  /// [withdrawAccount] 提现账户（具体账号）
+  /// 
+  /// 注意：v2board 的提现是通过工单系统实现的
+  static Future<WithdrawResultData?> withdrawCommission({
+    required String withdrawMethod,
     required String withdrawAccount,
   }) async {
     try {
-      // SDK中可能没有此方法，返回null
-      _logger.warning('[SDK] withdrawCommission API未实现');
-      return null;
+      _logger.info('[SDK] 申请提现: 方式=$withdrawMethod, 账号=$withdrawAccount');
+      
+      final result = await _sdk.balance.withdrawFunds(withdrawMethod, withdrawAccount);
+      
+      return result;  // WithdrawResult 已经是正确的类型
     } catch (e) {
-      _logger.error('[SDK] 提现佣金失败', e);
-      return null;
+      _logger.error('[SDK] 提现申请失败', e);
+      rethrow; // 重新抛出异常，让 UI 层可以获取详细错误信息
     }
   }
 
   /// 划转佣金到余额
-  /// 注意：SDK中可能没有此API，这里仅作占位
-  static Future<sdk.TransferResult?> transferCommissionToBalance(
+  /// [amount] 金额（元），会自动转换为分
+  static Future<TransferResultData?> transferCommissionToBalance(
       double amount) async {
     try {
-      // SDK中可能没有此方法，返回null
-      _logger.warning('[SDK] transferCommissionToBalance API未实现');
-      return null;
+      final amountInCents = (amount * 100).round(); // 转换为分
+      _logger.info('[SDK] 划转佣金: ¥$amount (${amountInCents}分)');
+      
+      final result = await _sdk.balance.transferCommission(amountInCents);
+      
+      return result;  // TransferResult 已经是正确的类型
     } catch (e) {
       _logger.error('[SDK] 划转佣金失败', e);
-      return null;
+      rethrow; // 重新抛出异常，让 UI 层可以获取详细错误信息
     }
   }
 
@@ -598,7 +578,7 @@ class XBoardSDK {
   static Future<List<sdk.Notice>> getNotices() async {
     try {
       final result = await _sdk.notice.fetchNotices();
-      return result.data;
+      return result.data ?? [];
     } catch (e) {
       _logger.error('[SDK] 获取公告列表失败', e);
       return [];
@@ -611,7 +591,7 @@ class XBoardSDK {
   static Future<dynamic> getConfig() async {
     try {
       final result = await _sdk.config.getConfig();
-      return result.data;
+      return result;  // ConfigData 本身就是数据
     } catch (e) {
       _logger.error('[SDK] 获取配置失败', e);
       return null;
